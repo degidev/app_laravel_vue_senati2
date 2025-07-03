@@ -63,5 +63,8 @@ Route::delete('/configuracion/eliminar-llave/{id_llave}',[AsisLlaveController::c
 Route::get('/configuracion/llaves-pdf',[AsisLlaveController::class,'llavePdf'])->name('configuracion.llave-pdf');
 Route::put('/configuracion/llave/{id_llave}',[AsisLlaveController::class,'update'])->name('configuracion.llave.update');
 
+//hemos mejorados algo
+Route::get('diego',[AsisLlaveController::class,'diego'])->name('diego');
+
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';
