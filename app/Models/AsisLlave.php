@@ -12,7 +12,9 @@ class AsisLlave extends Model
         'codigo',
         'disponible',
         'estado',
-        'orden'
+        'orden',
+        'usuario_registra',
+        'usuario_actualiza'
     ];
 
     const CREATED_AT = 'fecha_registra';

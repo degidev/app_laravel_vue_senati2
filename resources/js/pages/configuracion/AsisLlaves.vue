@@ -78,7 +78,7 @@
                         v-on:click="guardarDatos"
                         class="text-white bg-rose-500 hover:bg-rose-700 
                             font-bold rounded-lg text-sm px-5 py-2.5 me-2 mb-2"
-                    >Guardar</button>
+                    > {{ esEditar ? 'EDITAR' : 'GUARDAR' }} </button>
                 </div>
              </form>
 
@@ -90,7 +90,6 @@
                         v-on:click="mostrarPdf()"
                 >Exportar PDF</button>
             </div>
-            {{ esEditar }}
             <!-- tabla -->
             <div class="relative overflow-x-auto shadow-md sm:rounded-lg">
                 <table class="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
@@ -107,6 +106,15 @@
                             </th>
                             <th scope="col" class="px-6 py-3">
                                 Orden
+                            </th>
+                            <th scope="col" class="px-6 py-3">
+                                Fecha registro
+                            </th>
+                            <th scope="col" class="px-6 py-3">
+                                Usuario registro
+                            </th>
+                            <th scope="col" class="px-6 py-3">
+                                Correo registro
                             </th>
                             <th scope="col" class="px-6 py-3">
                                 <span class="sr-only">Edit</span>
@@ -128,6 +136,15 @@
                             </td>
                             <td class="px-6 py-4">
                                 {{ llave.orden }}
+                            </td>
+                            <td class="px-6 py-4">
+                                {{ llave.name }}
+                            </td>
+                            <td class="px-6 py-4">
+                                {{ llave.email }}
+                            </td>
+                            <td class="px-6 py-4">
+                                {{ llave.fecha_registra }}
                             </td>
                             <td class="px-6 py-4 text-right">
                                 <button 
@@ -170,6 +187,7 @@
     ];
 
     const form = useForm({
+        id_llave: null as number | null,
         codigo: '',
         disponible: '',
         estado: '',
@@ -184,7 +202,11 @@
                 form.reset();
             },
         }
-        form.post(route('configuracion.crear-llave'),common);
+        if(esEditar.value){
+            form.put(route('configuracion.llave.update',form.id_llave),common);
+        }else{
+            form.post(route('configuracion.crear-llave'),common);
+        }
     }
 
     function elimiarDatos(id_llave : number){
@@ -200,6 +222,7 @@
 
         esEditar.value = true;
 
+        form.id_llave = llave.id_llave;
         form.codigo = llave.codigo;
         form.disponible = llave.disponible.toString();
         form.estado = llave.estado.toString();
