@@ -117,4 +117,18 @@ class AsisLlaveController extends Controller
         return Redirect::route('configuracion.llaves')
         ->with('success','Llave elinada correctamente');
     }
+    
+    /**
+     * Get all users for dropdown and autocomplete
+     */
+    public function getUsers()
+    {
+        // Obtener todos los usuarios de la base de datos
+        $users = DB::table('users')
+            ->select('id', 'name', 'email')
+            ->orderBy('name')
+            ->get();
+            
+        return response()->json($users);
+    }
 }

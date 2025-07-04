@@ -71,6 +71,68 @@
                                 {{ form.errors.orden }}
                             </span>
                     </div>
+                    <!-- Dropdown de selección de usuario -->
+                    <div class="mb-2">
+                        <label for="user-select" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+                        >Usuario (Select)</label>
+                        <select 
+                            id="user-select" 
+                            v-model="form.usuario" 
+                            class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+                        >
+                            <option selected value="">Seleccionar usuario</option>
+                            <option v-for="usuario in usuarios" :key="usuario.id_usuario" :value="usuario.id_usuario">
+                                {{ usuario.name }}
+                            </option>
+                        </select>
+                        <span v-if="form.errors.usuario" class="text-red-500 text-xs mt-1">
+                            {{ form.errors.usuario }}
+                        </span>
+                    </div>
+                    <!-- Autocomplete de usuario -->
+                    <div class="mb-2">
+                        <label for="user-autocomplete" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+                        >Usuario (Autocomplete)</label>
+                        <div class="relative">
+                            <input 
+                                type="text" 
+                                id="user-autocomplete" 
+                                v-model="searchQuery"
+                                @input="handleSearchInput"
+                                @focus="showSuggestions = true"
+                                placeholder="Buscar usuario..."
+                                class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+                            >
+                            <!-- Lista de sugerencias -->
+                            <div 
+                                v-if="showSuggestions && filteredUsers.length > 0" 
+                                class="absolute z-10 w-full bg-white border border-gray-300 rounded-lg mt-1 max-h-60 overflow-y-auto dark:bg-gray-700 dark:border-gray-600"
+                            >
+                                <ul>
+                                    <li 
+                                        v-for="user in filteredUsers" 
+                                        :key="user.id_usuario"
+                                        @click="selectUser(user)"
+                                        class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer"
+                                    >
+                                        {{ user.name }} ({{ user.email }})
+                                    </li>
+                                </ul>
+                            </div>
+                            <div v-if="showSuggestions && isLoading" class="absolute z-10 w-full bg-white border border-gray-300 rounded-lg mt-1 p-4 dark:bg-gray-700 dark:border-gray-600">
+                                <div class="flex items-center justify-center">
+                                    <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+                                    <span class="ml-2">Buscando...</span>
+                                </div>
+                            </div>
+                            <div v-else-if="showSuggestions && filteredUsers.length === 0 && searchQuery" class="absolute z-10 w-full bg-white border border-gray-300 rounded-lg mt-1 p-4 dark:bg-gray-700 dark:border-gray-600">
+                                No se encontraron usuarios
+                            </div>
+                        </div>
+                        <span v-if="form.errors.usuario" class="text-red-500 text-xs mt-1">
+                            {{ form.errors.usuario }}
+                        </span>
+                    </div>
                 </div>
                 <div class="mt-3">
                     <button 
@@ -79,6 +141,12 @@
                         class="text-white bg-rose-500 hover:bg-rose-700 
                             font-bold rounded-lg text-sm px-5 py-2.5 me-2 mb-2"
                     > {{ esEditar ? 'EDITAR' : 'GUARDAR' }} </button>
+                    <button 
+                        type="button" 
+                        v-on:click="probar"
+                        class="text-white bg-blue-500 hover:bg-blue-700 
+                            font-bold rounded-lg text-sm px-5 py-2.5 me-2 mb-2"
+                    >PROBAR</button>
                 </div>
              </form>
 
@@ -168,9 +236,11 @@
 
 <script setup lang="ts">
     import AppLayout from '@/layouts/AppLayout.vue';
-    import { Head, useForm } from '@inertiajs/vue3';
+    import { Head, useForm, router } from '@inertiajs/vue3';
+import { onMounted } from 'vue';
     import { type BreadcrumbItem } from '@/types';
-    import { defineProps, watch, ref } from 'vue';
+    import { defineProps, watch, ref, computed } from 'vue';
+    import axios from 'axios';
     import Swal from 'sweetalert2'
 
     const esEditar = ref(false);
@@ -192,6 +262,7 @@
         disponible: '',
         estado: '',
         orden: '',
+        usuario: '',
     });
 
 
@@ -234,15 +305,17 @@
     }
 
     const props = defineProps({
-        estudiante: Object as () =>{
+        estudiante: Object as () => ({
             nombre: string,
-            institucion: string,
-        },
+            institucion: string
+        }),
+        users: Array as () => Array<{id: number, name: string, email: string}>,
+        searchQuery: String,
         llaves: Array as () => Llaves[],
-        flash: Object as () =>{
+        flash: Object as () => ({
             success?: string,
-            error?: string,
-        },
+            error?: string
+        }),
     });
     watch(
         () => props.flash,
@@ -274,6 +347,141 @@
         estado: number,
         orden: number,
     }
+    
+    interface Usuario {
+        id_usuario: number,
+        name: string,
+        email: string,
+    }
+    
+    // Estado para el select y el autocomplete
+    const usuarios = ref<Usuario[]>([]); // Para el select
+    const searchQuery = ref('');
+    const filteredUsers = ref<Usuario[]>([]); // Para el autocomplete
+    const showSuggestions = ref(false);
+    const selectedUser = ref<Usuario | null>(null);
+    const isLoading = ref(false);
+    let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
+    
+    // Cargar usuarios para el select al iniciar el componente
+    onMounted(() => {
+        fetchAllUsers();
+    });
+    
+    // Función para cargar todos los usuarios (para el select)
+    async function fetchAllUsers() {
+        try {
+            const response = await axios.get(route('api.users'));
+            
+            if (response.data && Array.isArray(response.data)) {
+                usuarios.value = response.data.map((user: {id: number, name: string, email: string}) => ({
+                    id_usuario: user.id,
+                    name: user.name,
+                    email: user.email
+                }));
+            }
+        } catch (error) {
+            console.error('Error al cargar usuarios:', error);
+            usuarios.value = [];
+        }
+    }
+    
+    // Función para buscar usuarios según el texto ingresado (para el autocomplete)
+    async function searchUsers(query: string) {
+        if (!query || query.length < 2) {
+            filteredUsers.value = [];
+            isLoading.value = false;
+            return;
+        }
+        
+        try {
+            isLoading.value = true;
+            
+            const response = await axios.get(route('api.users.search'), {
+                params: { query }
+            });
+            
+            if (response.data && Array.isArray(response.data)) {
+                filteredUsers.value = response.data.map((user: {id: number, name: string, email: string}) => ({
+                    id_usuario: user.id,
+                    name: user.name,
+                    email: user.email
+                }));
+            }
+        } catch (error) {
+            console.error('Error al buscar usuarios:', error);
+            filteredUsers.value = [];
+        } finally {
+            isLoading.value = false;
+        }
+    }
+    
+    // Ya no necesitamos filtrar localmente, siempre haremos peticiones al servidor para el autocomplete
+    
+    // Función para manejar la entrada del usuario con debounce
+    function handleSearchInput() {
+        // Cancelar el timeout anterior si existe
+        if (debounceTimeout) {
+            clearTimeout(debounceTimeout);
+        }
+        
+        // Si la búsqueda es muy corta, no hacemos petición
+        if (!searchQuery.value || searchQuery.value.length < 2) {
+            filteredUsers.value = [];
+            isLoading.value = false;
+            return;
+        }
+        
+        // Mostrar indicador de carga
+        isLoading.value = true;
+        
+        // Programamos la petición al servidor después de un delay
+        debounceTimeout = setTimeout(() => {
+            // Usar la función searchUsers con el query actual
+            searchUsers(searchQuery.value);
+        }, 300); // 300ms de debounce
+    }
+    
+    // Función para seleccionar un usuario desde el autocomplete
+    function selectUser(user: Usuario) {
+        // Ya no afectamos al select (form.usuario)
+        searchQuery.value = user.name;
+        showSuggestions.value = false;
+    }
+    
+    // Ya no sincronizamos el select con el autocomplete
+    // Los dos componentes son completamente independientes
+    
+    // Función para probar y mostrar los datos en consola
+    function probar() {
+        console.log('--- DATOS DEL FORMULARIO ---');
+        console.log('ID Llave:', form.id_llave);
+        console.log('Código:', form.codigo);
+        console.log('Disponible:', form.disponible);
+        console.log('Estado:', form.estado);
+        console.log('Orden:', form.orden);
+        
+        console.log('\n--- DATOS DEL SELECT ---');
+        console.log('Usuario seleccionado (ID):', form.usuario);
+        const usuarioSelect = usuarios.value.find(u => u.id_usuario.toString() === form.usuario);
+        console.log('Datos del usuario seleccionado:', usuarioSelect || 'Ninguno');
+        
+        console.log('\n--- DATOS DEL AUTOCOMPLETADO ---');
+        console.log('Texto de búsqueda:', searchQuery.value);
+        // Buscar el usuario que coincida con el texto de búsqueda
+        const usuarioAutocompletado = filteredUsers.value.find(u => u.name === searchQuery.value);
+        console.log('ID del usuario seleccionado en autocompletado:', usuarioAutocompletado ? usuarioAutocompletado.id_usuario : 'Ninguno');
+        console.log('Datos del usuario en autocompletado:', usuarioAutocompletado || 'Ninguno');
+        console.log('Resultados filtrados:', filteredUsers.value);
+    }
+    
+    // Cerrar sugerencias al hacer clic fuera del componente
+    document.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        if (!target.closest('#user-autocomplete')) {
+            showSuggestions.value = false;
+        }
+    });
 
 
 </script>

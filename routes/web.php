@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\VProductoController;
 use App\Http\Controllers\AsisLlaveController;
+use App\Http\Controllers\UserController;
 
 Route::get('/', function () {
     return Inertia::render('Welcome');
@@ -65,6 +66,10 @@ Route::put('/configuracion/llave/{id_llave}',[AsisLlaveController::class,'update
 
 //hemos mejorados algo
 Route::get('diego',[AsisLlaveController::class,'diego'])->name('diego');
+
+// API para obtener usuarios
+Route::get('/api/users',[UserController::class,'index'])->middleware(['auth'])->name('api.users');
+Route::get('/api/users/search',[UserController::class,'search'])->middleware(['auth'])->name('api.users.search');
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';
